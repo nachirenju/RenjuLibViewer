@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RenjuLibViewer</string>
+    <string name="title_activity_main">RenjuLibViewer</string>
+    <string name="package_name">com.nachirenju.renjulibviewer</string>
+    <string name="custom_url_scheme">com.nachirenju.renjulibviewer</string>
+</resources>

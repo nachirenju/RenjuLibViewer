@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Renju Lib Viewer</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <h2>Renju Lib Viewer</h2>
+
+  <div class="controls">
+    <div class="top-group">
+      <input type="file" id="loadLib" accept="*/*" style="display: none;">
+      <label for="loadLib" class="custom-file-upload">Load lib</label>
+      <button id="btnNew" class="btn-new">New</button>
+    </div>
+
+    <select id="encodingSelect">
+      <option value="shift-jis">Japanese (Shift_JIS)</option>
+      <option value="gbk">Simplified Chinese (GBK/Simp)</option>
+      <option value="big5">Traditional Chinese (Big5/Trad)</option>
+      <option value="euc-kr">Korean (EUC-KR)</option>
+      <option value="utf-8">UTF-8</option>
+    </select>
+
+    <div class="board-wrapper" id="capture-target">
+      <div id="lib-info">Total Nodes: 0 | Current Move: 0</div>
+      <div id="board-container">
+        <canvas id="board" width="800" height="800"></canvas>
+      </div>
+      <div class="btn-group">
+        <button id="btnUndo1">◀</button>
+        <button id="btnUndo5">◀◀</button>
+        <button id="btnRedo1">▶</button>
+        <button id="btnRedo5">▶▶</button>
+        <button id="btnText">Aa</button>
+        <button id="btnPuzzle" title="Branch"><img src="./icons/branch.svg" alt="Branch"></button>
+        <button id="btnShare" title="Share"><img src="./icons/share.svg" alt="Share"></button>
+        <button id="btnSave" title="Save"><img src="./icons/file_save.svg" alt="Save"></button>
+        <button id="btnDelete" title="Delete"><img src="./icons/delete.svg" alt="Del"></button>
+        <button id="btnAbout" title="About"><img src="./icons/info.svg" alt="About"></button>
+      </div>
+    </div>
+<div class="board-wrapper" id="capture-target">
+      </div>
+
+ <div id="comment-box" class="collapsed">
+      <h3 id="comment-toggle">Comments <span class="toggle-arrow">▼</span></h3>
+      <div class="comment-content">
+        <textarea id="comment-text" placeholder="No Comments"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-group">
+    <input type="text" class="status-bar" id="movesText" placeholder="h8h9..." spellcheck="false">
+    <button class="copy-btn" id="btnCopyMoves">Copy</button>
+  </div>
+  <div class="input-group" style="margin-top: 5px;">
+    <input type="text" class="status-bar" id="sgfText" placeholder="(;GM[1]SZ[15]...)" spellcheck="false">
+    <button class="copy-btn" id="btnCopySgf">Copy</button>
+  </div>
+  <div id="toast">Copied Diagram.</div>
+
+  <div id="aboutModal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeModal" class="close-btn">&times;</span>
+      <h3>About This App</h3>
+      <p>連珠(五目並べ)の棋譜閲覧アプリです。.lib形式のファイルを読み込んで棋譜を閲覧、またダウンロード、画面下部からテキストでの棋譜貼り付けに対応しています。</p>
+      <hr>
+      <p>製作者は連珠(五目並べ)関係のYouTubeチャンネルを運営しております。<br>応援していただけると嬉しいです。</p>
+      <p><a href="https://www.youtube.com/channel/UCfbgN9hrrh9fmFKs8gxln5g" target="_blank">youtube(那智暴虐のれんじゅいし【競技五目並べ】)</a></p>
+      <hr>
+      <h4>License & Credits</h4>
+      <p>Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3.0</a>.</p>
+      <p>This app is based on <strong>rapfi</strong> (GPL v3.0) by dhbloo. (About loading lib function.)</p>
+      <p><a href="https://github.com/dhbloo/rapfi" target="_blank">Original Repository (GitHub)</a></p>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "appId": "com.nachirenju.renjulibviewer",
+  "appName": "RenjuLibViewer",
+  "webDir": "dist",  
+  "bundledWebRuntime": false
+}

@@ -1,0 +1,41 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Android / Capacitor 追加設定 ---
+
+# ビルド生成物（重いので除外）
+android/app/build/
+android/.gradle/
+android/app/src/main/assets/public/*
+
+# 秘密鍵・署名ファイル（【重要】絶対公開してはいけないもの）
+*.jks
+*.keystore
+*.pem
+*.p12
+
+# 環境依存の設定ファイル
+key.properties
+local.properties
