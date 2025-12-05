@@ -683,28 +683,53 @@ document.getElementById("btnNew").addEventListener("click", () => {
     renderBoard();
 });
 
+// --- New Load Lib Logic (With Modal) ---
+let pendingFile = null;
+const encodingModal = document.getElementById("encodingModal");
+const btnConfirmEncoding = document.getElementById("btnConfirmEncoding");
+const modalEncodingSelect = document.getElementById("modalEncodingSelect");
+
 document.getElementById("loadLib").addEventListener("change", e => {
   if(isPuzzleMode) togglePuzzleMode();
   const file = e.target.files[0];
   if (!file) return;
-  const encoding = document.getElementById("encodingSelect").value;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const rr = new RenlibReaderJS(reader.result, encoding);
-      rr.traverse();
-      currentNodeIdx = 0; 
-      moves = []; 
-      redoStack = []; 
-      mainBoard = new JSBoard(SIZE);
-      const emptyHash = mainBoard.getCanonicalData().hash;
-      addNodeToHash(emptyHash, 0);
-      renderBoard();
-    } catch (err) { 
-        if (err.message !== "EOF") alert(`Error: ${err.message}`); 
+  
+  // Store file and show modal
+  pendingFile = file;
+  encodingModal.classList.remove("hidden");
+  
+  // Clear input so same file can be selected again if cancelled
+  e.target.value = '';
+});
+
+// Handle Encoding Confirmation
+btnConfirmEncoding.addEventListener("click", () => {
+    if (!pendingFile) {
+        encodingModal.classList.add("hidden");
+        return;
     }
-  };
-  reader.readAsArrayBuffer(file);
+    
+    const encoding = modalEncodingSelect.value;
+    encodingModal.classList.add("hidden");
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rr = new RenlibReaderJS(reader.result, encoding);
+        rr.traverse();
+        currentNodeIdx = 0; 
+        moves = []; 
+        redoStack = []; 
+        mainBoard = new JSBoard(SIZE);
+        const emptyHash = mainBoard.getCanonicalData().hash;
+        addNodeToHash(emptyHash, 0);
+        renderBoard();
+      } catch (err) { 
+          if (err.message !== "EOF") alert(`Error: ${err.message}`); 
+      }
+    };
+    reader.readAsArrayBuffer(pendingFile);
+    pendingFile = null;
 });
 
 elComment.addEventListener('input', (e) => { 
@@ -968,7 +993,7 @@ if (commentToggle && commentBox) {
 // --- Save Logic (Updated for Encoding) ---
 document.getElementById("btnSave").addEventListener("click", async () => {
     try {
-        const encoding = document.getElementById("encodingSelect").value;
+        const encoding = document.getElementById("modalEncodingSelect").value;
         const writer = new RenlibWriter(encoding);
         writer.build();
         const base64 = writer.getBase64();

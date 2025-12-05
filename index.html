@@ -16,13 +16,7 @@
       <button id="btnNew" class="btn-new">New</button>
     </div>
 
-    <select id="encodingSelect">
-      <option value="shift-jis">Japanese (Shift_JIS)</option>
-      <option value="gbk">Simplified Chinese (GBK/Simp)</option>
-      <option value="big5">Traditional Chinese (Big5/Trad)</option>
-      <option value="euc-kr">Korean (EUC-KR)</option>
-      <option value="utf-8">UTF-8</option>
-    </select>
+ 
 
     <div class="board-wrapper" id="capture-target">
       <div id="lib-info">Total Nodes: 0 | Current Move: 0</div>
@@ -30,8 +24,8 @@
         <canvas id="board" width="800" height="800"></canvas>
       </div>
       <div class="btn-group">
-        <button id="btnUndo1">◀</button>
         <button id="btnUndo5">◀◀</button>
+        <button id="btnUndo1">◀</button>
         <button id="btnRedo1">▶</button>
         <button id="btnRedo5">▶▶</button>
         <button id="btnText">Aa</button>
@@ -76,6 +70,23 @@
       <p>Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3.0</a>.</p>
       <p>This app is based on <strong>rapfi</strong> (GPL v3.0) by dhbloo. (About loading lib function.)</p>
       <p><a href="https://github.com/dhbloo/rapfi" target="_blank">Original Repository (GitHub)</a></p>
+    </div>
+  </div>
+
+  <div id="encodingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Select Encoding</h3>
+      <p>ファイルの文字コードを選択してください。<br>(通常は Shift_JIS です)</p>
+      <select id="modalEncodingSelect" style="width: 100%; margin: 10px 0;">
+        <option value="shift-jis">Japanese (Shift_JIS)</option>
+        <option value="gbk">Simplified Chinese (GBK/Simp)</option>
+        <option value="big5">Traditional Chinese (Big5/Trad)</option>
+        <option value="euc-kr">Korean (EUC-KR)</option>
+        <option value="utf-8">UTF-8</option>
+      </select>
+      <div style="text-align: right; margin-top: 15px;">
+        <button id="btnConfirmEncoding" style="max-width: none; padding: 10px 20px;">Load</button>
+      </div>
     </div>
   </div>
 
