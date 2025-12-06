@@ -2,7 +2,7 @@
 
 **RenjuLibViewer** is a lightweight, web-based application for viewing and editing Renju (Gomoku) library files (`.lib`). It runs on modern browsers and Android devices (via Capacitor).
 
-**RenjuLibViewer** は、連珠（五目並べ）の定石ライブラリファイル（`.lib`形式）を閲覧・編集するための軽量アプリケーションです。ブラウザおよびAndroid端末で動作します。
+**RenjuLibViewer** は、連珠（五目並べ）の定石ライブラリファイル（`.lib`形式）を閲覧・編集するための軽量アプリケーションです。今のところはAndroid端末で動作します。
 
 ## Features / 機能
 
