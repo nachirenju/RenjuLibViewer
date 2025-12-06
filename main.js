@@ -1,5 +1,6 @@
 import iconv from 'iconv-lite';
 import { Buffer } from 'buffer';
+// iconv-liteが内部でBufferを使うためのポリフィル
 globalThis.Buffer = Buffer;
 
 import { Share } from '@capacitor/share';
@@ -8,6 +9,11 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 const SIZE=15;
 const MASK_TEXT=0x01, MASK_NOMOVE=0x02, MASK_START=0x04, MASK_COMMENT=0x08, MASK_TAG=0x10, MASK_NOCHILD=0x40, MASK_SIBLING=0x80;
 
+// --- 安全装置: 最大読み込みノード数 (可変) ---
+// 初期値: 300万 (スマホ向け推奨値)
+let currentMaxNodes = 3000000;
+
+// --- Chunked Memory for Structure ---
 const CHUNK_BITS = 22; 
 const CHUNK_SIZE = 1 << CHUNK_BITS; 
 const CHUNK_MASK = CHUNK_SIZE - 1;
@@ -30,6 +36,7 @@ function addChunk() {
     POOL.hashNext.push(new Int32Array(CHUNK_SIZE).fill(-1));
 }
 
+// 高速アクセサ
 const getX = (i) => POOL.x[i >> CHUNK_BITS][i & CHUNK_MASK];
 const getY = (i) => POOL.y[i >> CHUNK_BITS][i & CHUNK_MASK];
 const getParent = (i) => POOL.parent[i >> CHUNK_BITS][i & CHUNK_MASK];
@@ -46,6 +53,7 @@ const setSibling = (i, v) => POOL.sibling[i >> CHUNK_BITS][i & CHUNK_MASK] = v;
 const setStoredHash = (i, v) => POOL.hash[i >> CHUNK_BITS][i & CHUNK_MASK] = v;
 const setHashNext = (i, v) => POOL.hashNext[i >> CHUNK_BITS][i & CHUNK_MASK] = v;
 
+// --- 自作ハッシュテーブル ---
 const HASH_TABLE_BITS = 26;
 const HASH_TABLE_SIZE = 1 << HASH_TABLE_BITS;
 const HASH_TABLE_MASK = BigInt(HASH_TABLE_SIZE - 1);
@@ -68,6 +76,7 @@ function removeNodeFromHash(hash, nodeIdx) {
     const bucket = Number(hash & HASH_TABLE_MASK);
     let curr = HASH_HEAD[bucket];
     let prev = -1;
+    
     while(curr !== -1) {
         if(curr === nodeIdx) {
             const next = getHashNext(curr);
@@ -106,6 +115,7 @@ function hasHashEntry(hash) {
     return false;
 }
 
+// --- 文字列プール ---
 const STR_POOL_SIZE = 64 * 1024 * 1024;
 let STR_POOL = new Uint8Array(STR_POOL_SIZE);
 let STR_CURSOR = 0;
@@ -158,6 +168,7 @@ function addString(nodeIdx, str, type) {
 function getString(nodeIdx, type) {
     const keys = type === 'comment' ? COMMENT_TABLE_KEY : TEXT_TABLE_KEY;
     const vals = type === 'comment' ? COMMENT_TABLE_VAL : TEXT_TABLE_VAL;
+    
     let h = nodeIdx & STR_TABLE_MASK;
     while (keys[h] !== -1) {
         if (keys[h] === nodeIdx) {
@@ -179,6 +190,7 @@ function hasString(nodeIdx, type) {
     return false;
 }
 
+// --- 初期化 ---
 function initMemory() {
     POOL.x = []; POOL.y = []; POOL.parent = []; POOL.child = []; POOL.sibling = [];
     POOL.hash = []; POOL.hashNext = [];
@@ -189,6 +201,7 @@ function initMemory() {
 }
 initMemory();
 
+// --- Utils ---
 function coordToRenlib(x,y){
   if(x<0||y<0) return "PASS";
   return String.fromCharCode("a".charCodeAt(0)+x) + (15-y);
@@ -232,6 +245,7 @@ class JSBoard {
     this.hashes = new BigUint64Array(8).fill(0n);
   }
   isInBoard(x, y) { return x >= 0 && y >= 0 && x < this.size && y < this.size; }
+  
   _updateHashes(x, y, p) {
     for(let t=0; t<8; t++) {
         const [tx, ty] = TRANSFORMS[t](x, y);
@@ -239,6 +253,7 @@ class JSBoard {
         this.hashes[t] ^= Z_KEYS[idx];
     }
   }
+
   move(x, y) {
     if (this.isInBoard(x, y)) {
         this.grid[y * this.size + x] = this.player;
@@ -247,6 +262,7 @@ class JSBoard {
     this.hist.push({ x, y, player: this.player });
     this.player = 3 - this.player;
   }
+  
   undo() {
     const h = this.hist.pop();
     if (!h) return;
@@ -256,6 +272,7 @@ class JSBoard {
     }
     this.player = h.player;
   }
+
   getCanonicalData() {
     let minH = this.hashes[0];
     for(let i=1; i<8; i++) {
@@ -263,6 +280,7 @@ class JSBoard {
     }
     return { hash: minH };
   }
+  
   getGridVal(x, y) { return this.grid[y * this.size + x]; }
 }
 
@@ -301,12 +319,14 @@ function getVisualToTargetTransforms(visualGridArr, targetGridArr) {
   return validIndices;
 }
 
+// --- Renlib Writer Class ---
 class RenlibWriter {
     constructor(encoding) {
         this.encoding = encoding || 'utf-8';
-        this.buffer = new Uint8Array(1024 * 1024);
+        this.buffer = new Uint8Array(1024 * 1024); // Start with 1MB
         this.pos = 0;
     }
+
     ensure(size) {
         if (this.pos + size >= this.buffer.length) {
             const newBuf = new Uint8Array(this.buffer.length * 2);
@@ -314,22 +334,30 @@ class RenlibWriter {
             this.buffer = newBuf;
         }
     }
+
     write8(val) {
         this.ensure(1);
         this.buffer[this.pos++] = val & 0xFF;
     }
+
     writeString(str) {
         if (!str) return;
         const buffer = iconv.encode(str, this.encoding);
         const len = buffer.length;
+        
+        // Ensure space for string + null terminator + potential padding
         this.ensure(len + 2);
+        
         this.buffer.set(buffer, this.pos);
         this.pos += len;
-        this.buffer[this.pos++] = 0; 
+        this.buffer[this.pos++] = 0; // Null terminator
+        
+        // FIX: Alignment (Padding for odd length strings)
         if ((len + 1) % 2 !== 0) {
             this.buffer[this.pos++] = 0;
         }
     }
+
     getBase64() {
         let binary = '';
         const bytes = this.buffer.subarray(0, this.pos);
@@ -339,6 +367,7 @@ class RenlibWriter {
         }
         return btoa(binary);
     }
+
     writeNodeRecursive(nodeIdx) {
         const x = getX(nodeIdx);
         const y = getY(nodeIdx);
@@ -361,6 +390,7 @@ class RenlibWriter {
 
         this.write8(flags);
 
+        // FIX: Write 2 bytes padding if MASK_TEXT is set
         if (flags & MASK_TEXT) {
             this.write8(0);
             this.write8(0);
@@ -372,12 +402,14 @@ class RenlibWriter {
         if (child !== -1) {
             this.writeNodeRecursive(child);
         }
+
         if (sibling !== -1) {
             this.writeNodeRecursive(sibling);
         }
     }
+
     build() {
-        for(let i=0; i<20; i++) this.write8(0);
+        for(let i=0; i<20; i++) this.write8(0); // Header
         this.writeNodeRecursive(0);
         return this;
     }
@@ -395,6 +427,7 @@ class RenlibReaderJS {
     return this.data.getUint8(this.pos++); 
   }
   readHeader() { this.pos += 20; return ""; }
+  
   _readString() {
     const start = this.pos;
     let len = 0;
@@ -409,17 +442,28 @@ class RenlibReaderJS {
     if (consumed % 2 !== 0) { this.pos++; }
     return str;
   }
+
   readNodeToPool() {
+    // ★ Safety Check (Variable)
+    if (globalNodeCount >= currentMaxNodes) {
+         throw new Error("NODE_LIMIT_REACHED");
+    }
+
     if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
+    
     const move = this._get8();
     const flag = this._get8();
+    
     let x = -1, y = -1;
     if (move !== 0x00) {
         x = (move & 0x0f) - 1;
         y = (move >> 4);
     }
+    
     const idx = globalNodeCount++;
-    setX(idx, x); setY(idx, y);
+    setX(idx, x);
+    setY(idx, y);
+    
     if ((flag & MASK_TEXT)) { this.pos += 2; } 
     if ((flag & MASK_COMMENT)) {
         const s = this._readString();
@@ -429,22 +473,27 @@ class RenlibReaderJS {
         const s = this._readString();
         if(s) addString(idx, s, 'text');
     }
+    
     return {
         idx: idx,
         hasChild: (flag & MASK_NOCHILD) === 0,
         hasSibling: (flag & MASK_SIBLING) !== 0
     };
   }
-  traverse() {
+  
+  // ★ Async Traverse with Yielding and Status Update
+  async traverse() {
     resetHashSystem();
     resetStringSystem();
     initMemory(); 
     this.readHeader();
+
     let rootInfo = this.readNodeToPool();
     if (getX(rootInfo.idx) < 0 && rootInfo.hasChild) {
         globalNodeCount--; 
         rootInfo = this.readNodeToPool();
     }
+    
     setX(0, -1); setY(0, -1);
     setChild(0, rootInfo.idx);
     setParent(rootInfo.idx, 0);
@@ -454,59 +503,97 @@ class RenlibReaderJS {
     const stackStage = new Uint8Array(STACK_SIZE);
     const stackFlags = new Uint8Array(STACK_SIZE);
     let sp = 0; 
+
     stackNode[0] = rootInfo.idx;
     stackStage[0] = 0; 
     stackFlags[0] = (rootInfo.hasChild ? 1 : 0) | (rootInfo.hasSibling ? 2 : 0);
+
     const board = new JSBoard(SIZE);
 
-    while (sp >= 0) {
-        const currIdx = stackNode[sp];
-        const stage = stackStage[sp];
-        const flags = stackFlags[sp];
-        const hasChild = (flags & 1) !== 0;
-        const hasSibling = (flags & 2) !== 0;
+    const statusEl = document.getElementById("loadingStatus");
+    let iterCount = 0;
 
-        if (stage === 0) {
-            const px = getX(currIdx);
-            const py = getY(currIdx);
-            const isValid = (px < 0) || board.isInBoard(px, py);
-            if (isValid) {
-                board.move(px, py);
-                const { hash } = board.getCanonicalData();
-                addNodeToHash(hash, currIdx);
+    try {
+        while (sp >= 0) {
+            // ★ Yield every 5000 nodes to allow UI update
+            if (++iterCount % 5000 === 0) {
+                if(statusEl) statusEl.textContent = `Loading... ${globalNodeCount.toLocaleString()} nodes`;
+                await new Promise(r => setTimeout(r, 0)); 
             }
-            stackStage[sp] = 1; 
-            if (hasChild) {
-                try {
-                    const childInfo = this.readNodeToPool();
-                    setParent(childInfo.idx, currIdx);
-                    setChild(currIdx, childInfo.idx);
-                    sp++;
-                    if(sp >= STACK_SIZE) throw new Error("Stack Overflow");
-                    stackNode[sp] = childInfo.idx;
-                    stackStage[sp] = 0;
-                    stackFlags[sp] = (childInfo.hasChild ? 1 : 0) | (childInfo.hasSibling ? 2 : 0);
-                    continue; 
-                } catch(e) { if(e.message!=="EOF") throw e; }
+
+            const currIdx = stackNode[sp];
+            const stage = stackStage[sp];
+            const flags = stackFlags[sp];
+            const hasChild = (flags & 1) !== 0;
+            const hasSibling = (flags & 2) !== 0;
+
+            if (stage === 0) {
+                const px = getX(currIdx);
+                const py = getY(currIdx);
+                const isValid = (px < 0) || board.isInBoard(px, py);
+                
+                if (isValid) {
+                    board.move(px, py);
+                    const { hash } = board.getCanonicalData();
+                    addNodeToHash(hash, currIdx);
+                }
+
+                stackStage[sp] = 1; 
+
+                if (hasChild) {
+                    try {
+                        const childInfo = this.readNodeToPool();
+                        setParent(childInfo.idx, currIdx);
+                        setChild(currIdx, childInfo.idx);
+
+                        sp++;
+                        if(sp >= STACK_SIZE) throw new Error("Stack Overflow");
+                        stackNode[sp] = childInfo.idx;
+                        stackStage[sp] = 0;
+                        stackFlags[sp] = (childInfo.hasChild ? 1 : 0) | (childInfo.hasSibling ? 2 : 0);
+                        continue; 
+                    } catch(e) { 
+                        if(e.message === "NODE_LIMIT_REACHED") throw e;
+                        if(e.message!=="EOF") throw e; 
+                    }
+                }
+            }
+
+            if (stage === 1) {
+                const px = getX(currIdx);
+                const py = getY(currIdx);
+                if ((px < 0) || board.isInBoard(px, py)) board.undo();
+
+                sp--; 
+
+                if (hasSibling) {
+                    try {
+                        const sibInfo = this.readNodeToPool();
+                        const pIdx = getParent(currIdx);
+                        setParent(sibInfo.idx, pIdx);
+                        setSibling(currIdx, sibInfo.idx);
+
+                        sp++;
+                        stackNode[sp] = sibInfo.idx;
+                        stackStage[sp] = 0;
+                        stackFlags[sp] = (sibInfo.hasChild ? 1 : 0) | (sibInfo.hasSibling ? 2 : 0);
+                    } catch(e) { 
+                        if(e.message === "NODE_LIMIT_REACHED") throw e;
+                        if(e.message!=="EOF") throw e; 
+                    }
+                }
             }
         }
-        if (stage === 1) {
-            const px = getX(currIdx);
-            const py = getY(currIdx);
-            if ((px < 0) || board.isInBoard(px, py)) board.undo();
-            sp--; 
-            if (hasSibling) {
-                try {
-                    const sibInfo = this.readNodeToPool();
-                    const pIdx = getParent(currIdx);
-                    setParent(sibInfo.idx, pIdx);
-                    setSibling(currIdx, sibInfo.idx);
-                    sp++;
-                    stackNode[sp] = sibInfo.idx;
-                    stackStage[sp] = 0;
-                    stackFlags[sp] = (sibInfo.hasChild ? 1 : 0) | (sibInfo.hasSibling ? 2 : 0);
-                } catch(e) { if(e.message!=="EOF") throw e; }
-            }
+    } catch(err) {
+        // ★ Error Handling: Partial render on memory/limit errors
+        const isMemoryError = err.message === "NODE_LIMIT_REACHED" 
+                           || err.name === "RangeError" 
+                           || (err.message && err.message.includes("memory"));
+
+        if (isMemoryError) {
+            alert(`読み込みを中断しました（上限到達またはメモリ不足）。\n読み込めた部分のみを表示します。\n${err.message}`);
+        } else {
+            throw err;
         }
     }
   }
@@ -516,6 +603,8 @@ let currentNodeIdx = 0;
 let moves = []; 
 let redoStack = []; 
 let mainBoard = new JSBoard(SIZE);
+
+// --- Puzzle Mode Variables ---
 let isPuzzleMode = false;
 let savedPuzzleState = null; 
 
@@ -528,11 +617,13 @@ resetHashSystem();
 const emptyBoard = new JSBoard(SIZE);
 addNodeToHash(emptyBoard.getCanonicalData().hash, 0);
 
+// --- Puzzle Mode Logic ---
 const btnPuzzle = document.getElementById("btnPuzzle");
 btnPuzzle.addEventListener("click", togglePuzzleMode);
 
 function togglePuzzleMode() {
     isPuzzleMode = !isPuzzleMode;
+    
     if (isPuzzleMode) {
         btnPuzzle.classList.add("btn-active");
         savedPuzzleState = {
@@ -559,10 +650,12 @@ function undoMoves(steps) {
   for (let i = 0; i < steps; i++) {
     if (!moves.length) break;
     if (isPuzzleMode && moves.length === 0) break; 
+
     const m = moves.pop(); 
     redoStack.push(m); 
     mainBoard.undo(); 
     changed = true;
+    
     if (!isPuzzleMode) {
         const pIdx = getParent(currentNodeIdx);
         if (currentNodeIdx !== 0 && pIdx !== -1) {
@@ -584,9 +677,11 @@ function redoMoves(steps) {
     const m = redoStack.pop(); 
     moves.push(m);
     mainBoard.move(m.x, m.y);
+
     if (!isPuzzleMode) {
         let childIdx = getChild(currentNodeIdx);
         let nextNode = -1;
+        
         while(childIdx !== -1) {
             if (getX(childIdx) === m.x && getY(childIdx) === m.y) {
                 nextNode = childIdx;
@@ -594,19 +689,24 @@ function redoMoves(steps) {
             }
             childIdx = getSibling(childIdx);
         }
+
         if (nextNode === -1) {
            const { hash } = mainBoard.getCanonicalData();
            const nodes = getNodesFromHash(hash);
            if (nodes && nodes.length) nextNode = nodes[0];
         }
+
         if (nextNode === -1) {
            if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
+           
            nextNode = globalNodeCount++;
-           setX(nextNode, x); setY(nextNode, y);
+           setX(nextNode, m.x); setY(nextNode, m.y);
            setParent(nextNode, currentNodeIdx);
+           
            const oldHead = getChild(currentNodeIdx);
            setChild(currentNodeIdx, nextNode);
            setSibling(nextNode, oldHead);
+
            const { hash } = mainBoard.getCanonicalData();
            addNodeToHash(hash, nextNode);
         }
@@ -624,16 +724,21 @@ document.getElementById("btnRedo5").addEventListener("click", () => redoMoves(5)
 const btnText = document.getElementById("btnText");
 btnText.addEventListener("click", () => { isTextMode = !isTextMode; btnText.classList.toggle("btn-active", isTextMode); });
 
+// --- Recursive Deletion Logic ---
 function deleteSubtree(nodeIdx) {
     if (nodeIdx === -1) return;
+
     let child = getChild(nodeIdx);
     while (child !== -1) {
         let nextChild = getSibling(child); 
         deleteSubtree(child);
         child = nextChild;
     }
+
     const hash = getStoredHash(nodeIdx);
-    if (hash !== 0n) removeNodeFromHash(hash, nodeIdx);
+    if (hash !== 0n) { 
+        removeNodeFromHash(hash, nodeIdx);
+    }
 }
 
 document.getElementById("btnDelete").addEventListener("click", () => {
@@ -643,12 +748,16 @@ document.getElementById("btnDelete").addEventListener("click", () => {
     }
     if (currentNodeIdx === 0) return;
     if (!confirm("現在の局面以降のすべての分岐を削除しますか？\nDelete this move and all sub-branches?")) return;
+
     const pIdx = getParent(currentNodeIdx);
     if (pIdx === -1) return;
+
     deleteSubtree(currentNodeIdx);
+
     let child = getChild(pIdx);
     let prev = -1;
     let found = false;
+
     while (child !== -1) {
         if (child === currentNodeIdx) {
             const nextSib = getSibling(currentNodeIdx);
@@ -663,73 +772,101 @@ document.getElementById("btnDelete").addEventListener("click", () => {
         prev = child;
         child = getSibling(child);
     }
-    if (found) undoMoves(1);
+
+    if (found) {
+        undoMoves(1);
+    }
 });
 
+// --- New Button Logic ---
 document.getElementById("btnNew").addEventListener("click", () => {
     if (!confirm("新しい盤面を作成しますか？\nCreate a new board?")) return;
+    
     initMemory(); 
     currentNodeIdx = 0;
     moves = [];
     redoStack = [];
     mainBoard = new JSBoard(SIZE);
     specialClickMap.clear();
+    
     isPuzzleMode = false;
     savedPuzzleState = null;
     btnPuzzle.classList.remove("btn-active");
+    
     document.getElementById("loadLib").value = ""; 
+    
     const emptyHash = mainBoard.getCanonicalData().hash;
     addNodeToHash(emptyHash, 0);
+
     renderBoard();
 });
 
-// --- New Load Lib Logic (With Modal) ---
+// --- UI Elements & Load Logic ---
 let pendingFile = null;
 const encodingModal = document.getElementById("encodingModal");
 const btnConfirmEncoding = document.getElementById("btnConfirmEncoding");
 const modalEncodingSelect = document.getElementById("modalEncodingSelect");
+const loadingOverlay = document.getElementById("loadingOverlay");
 
 document.getElementById("loadLib").addEventListener("change", e => {
   if(isPuzzleMode) togglePuzzleMode();
   const file = e.target.files[0];
   if (!file) return;
   
-  // Store file and show modal
   pendingFile = file;
   encodingModal.classList.remove("hidden");
   
-  // Clear input so same file can be selected again if cancelled
   e.target.value = '';
 });
 
-// Handle Encoding Confirmation
+// ★ Updated to Async
 btnConfirmEncoding.addEventListener("click", () => {
     if (!pendingFile) {
         encodingModal.classList.add("hidden");
         return;
     }
-    
     const encoding = modalEncodingSelect.value;
     encodingModal.classList.add("hidden");
     
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const rr = new RenlibReaderJS(reader.result, encoding);
-        rr.traverse();
-        currentNodeIdx = 0; 
-        moves = []; 
-        redoStack = []; 
-        mainBoard = new JSBoard(SIZE);
-        const emptyHash = mainBoard.getCanonicalData().hash;
-        addNodeToHash(emptyHash, 0);
-        renderBoard();
-      } catch (err) { 
-          if (err.message !== "EOF") alert(`Error: ${err.message}`); 
-      }
-    };
-    reader.readAsArrayBuffer(pendingFile);
-    pendingFile = null;
+    // Show Loading Overlay
+    loadingOverlay.classList.remove("hidden");
+    
+    // Use setTimeout to allow browser to render loading screen first
+    setTimeout(async () => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+            try {
+                const rr = new RenlibReaderJS(reader.result, encoding);
+                await rr.traverse(); // ★ Async traverse
+                
+                currentNodeIdx = 0; 
+                moves = []; 
+                redoStack = []; 
+                mainBoard = new JSBoard(SIZE);
+                const emptyHash = mainBoard.getCanonicalData().hash;
+                addNodeToHash(emptyHash, 0);
+                renderBoard();
+            } catch (err) { 
+                if (err.message !== "EOF" && err.message !== "NODE_LIMIT_REACHED") {
+                    alert(`Error: ${err.message}`); 
+                }
+                // Partial render on limit reached or other acceptable stop
+                if (err.message === "NODE_LIMIT_REACHED") {
+                    currentNodeIdx = 0; 
+                    moves = []; 
+                    redoStack = []; 
+                    mainBoard = new JSBoard(SIZE);
+                    const emptyHash = mainBoard.getCanonicalData().hash;
+                    addNodeToHash(emptyHash, 0);
+                    renderBoard();
+                }
+            } finally {
+                loadingOverlay.classList.add("hidden");
+                pendingFile = null;
+            }
+        };
+        reader.readAsArrayBuffer(pendingFile);
+    }, 50);
 });
 
 elComment.addEventListener('input', (e) => { 
@@ -737,11 +874,13 @@ elComment.addEventListener('input', (e) => {
 });
 
 function handleInput(text, isSgf) {
-  if(isPuzzleMode) togglePuzzleMode(); 
+  if(isPuzzleMode) togglePuzzleMode(); // Safety reset
+
   moves = []; redoStack = [];
   mainBoard = new JSBoard(SIZE); currentNodeIdx = 0;
   const regex = isSgf ? /;[BW]\[([a-o]{2})\]/gi : /[a-o](?:1[0-5]|[1-9])/gi;
   const matches = [...text.matchAll(regex)];
+  
   for (const m of matches) {
     let x, y;
     if(isSgf) {
@@ -752,8 +891,10 @@ function handleInput(text, isSgf) {
        x=c.x; y=c.y;
     }
     if (!mainBoard.isInBoard(x, y) || mainBoard.getGridVal(x, y) !== 0) break;
+    
     moves.push({x, y});
     mainBoard.move(x, y);
+
     let childIdx = getChild(currentNodeIdx);
     let nextNode = -1;
     while(childIdx !== -1) {
@@ -763,6 +904,7 @@ function handleInput(text, isSgf) {
         }
         childIdx = getSibling(childIdx);
     }
+    
     if (nextNode === -1) {
        const { hash } = mainBoard.getCanonicalData();
        const nodes = getNodesFromHash(hash);
@@ -773,9 +915,11 @@ function handleInput(text, isSgf) {
        nextNode = globalNodeCount++;
        setX(nextNode, x); setY(nextNode, y);
        setParent(nextNode, currentNodeIdx);
+       
        const oldHead = getChild(currentNodeIdx);
        setChild(currentNodeIdx, nextNode);
        setSibling(nextNode, oldHead);
+
        const { hash } = mainBoard.getCanonicalData();
        addNodeToHash(hash, nextNode);
     }
@@ -799,15 +943,18 @@ canvas.addEventListener("click", e => {
   const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
   const gx = Math.round(((e.clientX - rect.left) * scaleX - 50) / 50), gy = Math.round(((e.clientY - rect.top) * scaleY - 50) / 50);
   if (gx < 0 || gy < 0 || gx >= SIZE || gy >= SIZE) return;
+
   if (isTextMode) {
      if (mainBoard.getGridVal(gx, gy) !== 0) return; 
      const key = `${gx},${gy}`;
      let targetIdx = specialClickMap.has(key) ? specialClickMap.get(key).idx : -1;
+     
      if (targetIdx === -1) {
         if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
         targetIdx = globalNodeCount++;
         setX(targetIdx, gx); setY(targetIdx, gy);
         setParent(targetIdx, currentNodeIdx);
+        
         const oldHead = getChild(currentNodeIdx);
         setChild(currentNodeIdx, targetIdx);
         setSibling(targetIdx, oldHead);
@@ -817,10 +964,12 @@ canvas.addEventListener("click", e => {
      if (input !== null) { addString(targetIdx, input, 'text'); renderBoard(); }
      return; 
   }
+
   if (mainBoard.getGridVal(gx, gy) !== 0) return;
   const key = `${gx},${gy}`;
   moves.push({ x: gx, y: gy }); mainBoard.move(gx, gy);
   redoStack = []; 
+
   if (specialClickMap.has(key) && !isPuzzleMode) {
     const data = specialClickMap.get(key);
     if (data.idx !== -1 && data.idx !== null) currentNodeIdx = data.idx;
@@ -830,14 +979,17 @@ canvas.addEventListener("click", e => {
        currentNodeIdx = (nodes && nodes.length) ? nodes[0] : -1;
     }
   } else {
+    // In Puzzle Mode or new branch
     if(!isPuzzleMode) {
         if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
         const newNode = globalNodeCount++;
         setX(newNode, gx); setY(newNode, gy);
         setParent(newNode, currentNodeIdx);
+        
         const oldHead = getChild(currentNodeIdx);
         setChild(currentNodeIdx, newNode);
         setSibling(newNode, oldHead);
+        
         const { hash } = mainBoard.getCanonicalData();
         addNodeToHash(hash, newNode);
         currentNodeIdx = newNode;
@@ -862,6 +1014,8 @@ function renderBoard() {
   [[3,3],[3,11],[7,7],[11,3],[11,11]].forEach(([sx, sy]) => {
     ctx.beginPath(); ctx.arc(margin + sx * cell, margin + sy * cell, 4, 0, Math.PI * 2); ctx.fill();
   });
+  
+  // Puzzle Background Stones
   if (isPuzzleMode && savedPuzzleState) {
       const snap = savedPuzzleState.gridSnapshot;
       for (let i = 0; i < snap.length; i++) {
@@ -871,26 +1025,34 @@ function renderBoard() {
               const cx = margin + x * cell, cy = margin + y * cell;
               ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2);
               ctx.fillStyle = (snap[i] === 1) ? "black" : "white"; 
-              ctx.fill(); ctx.stroke(); 
+              ctx.fill(); 
+              ctx.stroke(); 
           }
       }
   }
+
+  // Moves
   moves.forEach((m, i) => {
     const cx = margin + m.x * cell, cy = margin + m.y * cell;
     ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+    
     let isBlack = (i % 2 === 0);
     if (isPuzzleMode && savedPuzzleState && savedPuzzleState.moves.length % 2 !== 0) {
         isBlack = !isBlack;
     }
+
     ctx.strokeStyle = (i === moves.length - 1) ? "red" : "black";
     ctx.fillStyle = isBlack ? "black" : "white"; 
     ctx.fill(); ctx.stroke();
+    
     ctx.fillStyle = isBlack ? "white" : "black";
     ctx.font = "bold 20px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.strokeStyle = "black";
     ctx.fillText(i + 1, cx, cy);
   });
+
   specialClickMap.clear();
   const drawList = [], addedSet = new Set(), renlibMoves = moves.map(m => coordToRenlib(m.x, m.y));
+
   const checkAndAdd = (idx, tIndex, type) => {
     const invT = TRANSFORMS[INV_INDEX[tIndex]];
     const px = getX(idx), py = getY(idx);
@@ -903,11 +1065,14 @@ function renderBoard() {
     drawList.push({ x: rvx, y: rvy, type, idx: type==='normal'?idx:null });
     addedSet.add(vKey);
   };
+
+  // Only show tree hints if NOT in puzzle mode
   if (!isPuzzleMode) {
       const currChildren = getChild(currentNodeIdx);
       if (currChildren !== -1) {
         const currGrid = getCanonicalGridFromNodeIdx(currentNodeIdx);
         const transforms = getVisualToTargetTransforms(mainBoard.grid, currGrid);
+        
         if (transforms.length) {
             const prim = transforms.includes(0) ? 0 : transforms[0];
             let c = currChildren;
@@ -917,13 +1082,16 @@ function renderBoard() {
             }
         }
       }
+
       const nodes = getNodesFromHash(mainBoard.getCanonicalData().hash);
       if (nodes) {
         for(let nIdx of nodes) {
             const children = getChild(nIdx);
             if (children === -1) continue;
+            
             const nGrid = getCanonicalGridFromNodeIdx(nIdx);
             const ts = getVisualToTargetTransforms(mainBoard.grid, nGrid);
+            
             let c = children;
             while(c !== -1) {
                 ts.forEach(t => checkAndAdd(c, t, 'sym'));
@@ -931,13 +1099,16 @@ function renderBoard() {
             }
         }
       }
+      
       for (let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++){
          if(mainBoard.getGridVal(x, y)) continue;
          const vKey = `${x},${y}`;
          if(addedSet.has(vKey)) continue;
+         
          mainBoard.move(x, y);
          const exists = hasHashEntry(mainBoard.getCanonicalData().hash);
          mainBoard.undo();
+         
          if(exists) {
              specialClickMap.set(vKey, { idx: null });
              drawList.push({x, y, type: 'sym', idx: null});
@@ -945,12 +1116,14 @@ function renderBoard() {
          }
       }
   }
+
   const textCoords = new Set();
   drawList.forEach(d => {
       if(d.idx !== null) {
           if (hasString(d.idx, 'text')) textCoords.add(`${d.x},${d.y}`);
       }
   });
+  
   ctx.lineWidth = 1;
   drawList.forEach(d => {
       if(textCoords.has(`${d.x},${d.y}`)) return;
@@ -958,6 +1131,7 @@ function renderBoard() {
       ctx.fillStyle = (moves.length % 2 === 0) ? (d.type==='normal'?"black":"blue") : (d.type==='normal'?"white":"green");
       ctx.beginPath(); ctx.moveTo(cx + 8, cy); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   });
+
   drawList.filter(d => d.type === 'normal' && d.idx !== null && hasString(d.idx, 'text')).forEach(d => {
       const label = getString(d.idx, 'text');
       const cx = margin + d.x * cell, cy = margin + d.y * cell;
@@ -966,22 +1140,27 @@ function renderBoard() {
       ctx.fillStyle = "#F9EBCF"; ctx.fillRect(cx - w/2 - 6, cy - 12 - 6, w + 12, 24 + 12);
       ctx.fillStyle = "magenta"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, cx, cy);
   });
+
   if (currentNodeIdx !== 0) { elComment.value = getString(currentNodeIdx, 'comment') || ""; elComment.disabled = false; }
   else { elComment.value = ""; elComment.disabled = true; }
+
   ctx.save(); ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#000"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (let i = 0; i < SIZE; i++) {
     ctx.fillText(String.fromCharCode(65+i), margin + i * cell, margin + boardPx + 15);
     ctx.textAlign = "right"; ctx.fillText(SIZE - i, margin - 8, margin + i * cell); ctx.textAlign = "center";
   }
   ctx.restore();
+
+  // Info Display
   const currentMove = moves.length;
-  document.getElementById("lib-info").textContent = `Total Nodes: ${globalNodeCount} | Current Move: ${currentMove}` + (isPuzzleMode ? " (Puzzle)" : "");
+  document.getElementById("lib-info").textContent = `Total Nodes: ${globalNodeCount.toLocaleString()} | Current Move: ${currentMove}` + (isPuzzleMode ? " (Puzzle)" : "");
+
   if (document.activeElement !== elMoves) elMoves.value = renlibMoves.join("");
   if (document.activeElement !== elSgf) elSgf.value = convertMovesToSgfFromBoard(moves, SIZE);
 }
 renderBoard();
 
-// --- Comment Box Toggle Logic ---
+// --- Comment Box Toggle ---
 const commentToggle = document.getElementById("comment-toggle");
 const commentBox = document.getElementById("comment-box");
 if (commentToggle && commentBox) {
@@ -990,21 +1169,38 @@ if (commentToggle && commentBox) {
     });
 }
 
-// --- Save Logic (Updated for Encoding) ---
-document.getElementById("btnSave").addEventListener("click", async () => {
+// --- Save Logic ---
+const saveEncodingModal = document.getElementById("saveEncodingModal");
+const btnConfirmSaveEncoding = document.getElementById("btnConfirmSaveEncoding");
+const btnCancelSaveEncoding = document.getElementById("btnCancelSaveEncoding");
+const modalSaveEncodingSelect = document.getElementById("modalSaveEncodingSelect");
+
+document.getElementById("btnSave").addEventListener("click", () => {
+    saveEncodingModal.classList.remove("hidden");
+});
+
+btnCancelSaveEncoding.addEventListener("click", () => {
+    saveEncodingModal.classList.add("hidden");
+});
+
+btnConfirmSaveEncoding.addEventListener("click", async () => {
+    saveEncodingModal.classList.add("hidden");
     try {
-        const encoding = document.getElementById("modalEncodingSelect").value;
+        const encoding = modalSaveEncodingSelect.value;
         const writer = new RenlibWriter(encoding);
         writer.build();
         const base64 = writer.getBase64();
+        
         const now = new Date();
         const ymd = now.toISOString().slice(0,10).replace(/-/g,"");
         const filename = `renju_${ymd}_${now.getHours()}${now.getMinutes()}.lib`;
+
         await Filesystem.writeFile({
             path: filename,
             data: base64,
             directory: Directory.Documents
         });
+        
         alert(`Saved to Documents folder:\n${filename}`);
     } catch (e) {
         console.error("Save failed", e);
@@ -1012,6 +1208,7 @@ document.getElementById("btnSave").addEventListener("click", async () => {
     }
 });
 
+// --- Share Logic ---
 document.getElementById("btnShare").addEventListener("click", async () => {
     const comment = getString(currentNodeIdx, 'comment') || "";
     await shareBoardImage(canvas, comment);
@@ -1090,18 +1287,47 @@ async function shareBoardImage(sourceCanvas, comment) {
     }
 }
 
-// --- About Modal Logic ---
+// --- About & Settings Logic ---
 const modal = document.getElementById("aboutModal");
 const btnAbout = document.getElementById("btnAbout");
 const spanClose = document.getElementById("closeModal");
-btnAbout.addEventListener("click", () => {
-    modal.classList.remove("hidden");
-});
-spanClose.addEventListener("click", () => {
-    modal.classList.add("hidden");
-});
-window.addEventListener("click", (e) => {
-    if (e.target === modal) {
-        modal.classList.add("hidden");
+
+btnAbout.addEventListener("click", () => modal.classList.remove("hidden"));
+spanClose.addEventListener("click", () => modal.classList.add("hidden"));
+
+// Settings Modal
+const settingsModal = document.getElementById("settingsModal");
+const btnSettings = document.getElementById("btnSettings");
+const btnSaveSettings = document.getElementById("btnSaveSettings");
+const maxNodesSelect = document.getElementById("maxNodesSelect");
+const maxNodesInput = document.getElementById("maxNodesInput");
+
+if (btnSettings && settingsModal) {
+    btnSettings.addEventListener("click", () => {
+        if (maxNodesInput) maxNodesInput.value = currentMaxNodes.toString();
+        settingsModal.classList.remove("hidden");
+    });
+    
+    // Sync Select -> Input
+    if (maxNodesSelect && maxNodesInput) {
+        maxNodesSelect.addEventListener("change", () => {
+            if (maxNodesSelect.value) {
+                maxNodesInput.value = maxNodesSelect.value;
+            }
+        });
     }
+    
+    btnSaveSettings.addEventListener("click", () => {
+        const val = parseInt(maxNodesInput.value, 10);
+        if (val > 0) currentMaxNodes = val;
+        settingsModal.classList.add("hidden");
+    });
+}
+
+// Global click to close any modal
+window.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+    if (e.target === settingsModal) settingsModal.classList.add("hidden");
+    if (e.target === encodingModal) encodingModal.classList.add("hidden");
+    if (e.target === saveEncodingModal) saveEncodingModal.classList.add("hidden");
 });
