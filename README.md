@@ -34,10 +34,10 @@ I run a YouTube channel dedicated to Renju (Gomoku). Please subscribe!
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)**.
 
 This application is based on **rapfi** developed by **dhbloo**.
-Basic logic for parsing RenLib files and the tree structure concept are derived from their work.
+Basic logic for parsing Lib and db files and the tree structure concept are derived from their work.
 
 本アプリケーションは、**dhbloo** 氏によって開発された **rapfi** をベースに作成されました。
-RenLib形式のパース処理やツリー構造の基本ロジックにおいて、多大な影響とコードの参照を受けています。
+Lib形式及びDb形式のパース処理やツリー構造の基本ロジックにおいて、多大な影響とコードの参照を受けています。
 
 * **Original Project**: [rapfi by dhbloo](https://github.com/dhbloo/rapfi)
 * **License**: GPL v3.0

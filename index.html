@@ -12,11 +12,9 @@
   <div class="controls">
     <div class="top-group">
       <input type="file" id="loadLib" accept="*/*" style="display: none;">
-      <label for="loadLib" class="custom-file-upload">Load lib</label>
+      <label for="loadLib" class="custom-file-upload">Load lib or db</label>
       <button id="btnNew" class="btn-new">New</button>
     </div>
-
- 
 
     <div class="board-wrapper" id="capture-target">
       <div id="lib-info">Total Nodes: 0 | Current Move: 0</div>
@@ -37,10 +35,8 @@
         <button id="btnAbout" title="About"><img src="./icons/info.svg" alt="About"></button>
       </div>
     </div>
-<div class="board-wrapper" id="capture-target">
-      </div>
 
- <div id="comment-box" class="collapsed">
+    <div id="comment-box" class="collapsed">
       <h3 id="comment-toggle">Comments <span class="toggle-arrow">▼</span></h3>
       <div class="comment-content">
         <textarea id="comment-text" placeholder="No Comments"></textarea>
@@ -69,7 +65,7 @@
       <hr>
       <h4>License & Credits</h4>
       <p>Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3.0</a>.</p>
-      <p>This app is based on <strong>rapfi</strong> (GPL v3.0) by dhbloo. (About loading lib function.)</p>
+      <p>This app is based on <strong>rapfi</strong> (GPL v3.0) by dhbloo. (About loading lib and db function.)</p>
       <p><a href="https://github.com/dhbloo/rapfi" target="_blank">Original Repository (GitHub)</a></p>
     </div>
   </div>
@@ -94,53 +90,26 @@
 
   <div id="saveEncodingModal" class="modal hidden">
     <div class="modal-content">
-      <h3>Select Encoding (Save)</h3>
-      <p>保存する文字コードを選択してください。<br>(lib内で使用されている言語に合わせてください)<br>選択された文字コードとlibの文字コードが一致しない場合、正確に保存されません。
-        br>Choose the character code. (Same language as you use in lib)<br>If the code you choose and the one used in lib are different, app can't save lib properly.</p>
-      <select id="modalSaveEncodingSelect" style="width: 100%; margin: 10px 0;">
-        <option value="shift-jis">Japanese (Shift_JIS)</option>
-        <option value="gbk">Simplified Chinese (GBK/Simp)</option>
-        <option value="big5">Traditional Chinese (Big5/Trad)</option>
-        <option value="euc-kr">Korean (EUC-KR)</option>
-        <option value="utf-8">UTF-8</option>
+      <h3>Save Configuration</h3>
+      <p>保存形式と文字コードを選択してください。<br>※現状.dbの書き出しが機能しません。<br>Select File Format and Encoding.<br>*Currently saving by db format doesn't work.</p>
+
+      <label style="display:block; font-weight:bold; margin-bottom:5px;">File Format:</label>
+      <select id="modalSaveFormatSelect" style="width: 100%; margin-bottom: 15px; padding: 5px;">
+        <option value="lib">RenLib (.lib)</option>
+        <option value="db">YXDB (.db)</option>
       </select>
+
+      <label style="display:block; font-weight:bold; margin-bottom:5px;">Encoding:</label>
+      <select id="modalSaveEncodingSelect" style="width: 100%; margin-bottom: 15px; padding: 5px;">
+        <option value="shift-jis">Japanese (Shift_JIS)</option>
+        <option value="gb2312">Chinese (GB2312)</option>
+        <option value="big5">Traditional Chinese (Big5)</option>
+        <option value="utf-8">UTF-8</option>
+        <option value="windows-1251">Cyrillic</option>
+      </select>
+      
       <div style="text-align: right; margin-top: 15px;">
         <button id="btnConfirmSaveEncoding" style="max-width: none; padding: 10px 20px;">Save</button><br>
-        <button id="btnCancelSaveEncoding" style="max-width: none; padding: 10px 20px; background: #6c757d; margin-right: 5px;">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="encodingModal" class="modal hidden">
-    <div class="modal-content">
-      <h3>Select Encoding (Load)</h3>
-      <p>読み込むファイルの文字コードを選択してください。<br>(通常は Shift_JIS です)</p>
-      <select id="modalEncodingSelect" style="width: 100%; margin: 10px 0;">
-        <option value="shift-jis">Japanese (Shift_JIS)</option>
-        <option value="gbk">Simplified Chinese (GBK/Simp)</option>
-        <option value="big5">Traditional Chinese (Big5/Trad)</option>
-        <option value="euc-kr">Korean (EUC-KR)</option>
-        <option value="utf-8">UTF-8</option>
-      </select>
-      <div style="text-align: right; margin-top: 15px;">
-        <button id="btnConfirmEncoding" style="max-width: none; padding: 10px 20px;">Load</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="saveEncodingModal" class="modal hidden">
-    <div class="modal-content">
-      <h3>Select Encoding (Save)</h3>
-      <p>保存する文字コードを選択してください。<br>(通常は Shift_JIS です)</p>
-      <select id="modalSaveEncodingSelect" style="width: 100%; margin: 10px 0;">
-        <option value="shift-jis">Japanese (Shift_JIS)</option>
-        <option value="gbk">Simplified Chinese (GBK/Simp)</option>
-        <option value="big5">Traditional Chinese (Big5/Trad)</option>
-        <option value="euc-kr">Korean (EUC-KR)</option>
-        <option value="utf-8">UTF-8</option>
-      </select>
-      <div style="text-align: right; margin-top: 15px;">
-        <button id="btnConfirmSaveEncoding" style="max-width: none; padding: 10px 20px;">Save</button>
         <button id="btnCancelSaveEncoding" style="max-width: none; padding: 10px 20px; background: #6c757d; margin-right: 5px;">Cancel</button>
       </div>
     </div>
@@ -165,7 +134,7 @@
         (推奨: 3,000,000 〜 5,000,000)<br>
         Choose the maximum nodes you load.If max node is too high, the app might freeze or crash
       </p>
-  <div style="margin-bottom: 10px;">
+      <div style="margin-bottom: 10px;">
         <label style="font-size:12px; color:#444;">Presets:</label>
         <select id="maxNodesSelect" style="width: 100%; padding: 8px;">
           <option value="" disabled selected>Select a preset...</option>
@@ -180,15 +149,19 @@
         <label style="font-size:12px; color:#444;">Custom Value:</label>
         <input type="number" id="maxNodesInput" style="width: 100%; padding: 8px;" placeholder="Enter value...">
       </div>
+<div style="margin-bottom: 15px;">
+      <label style="display: flex; align-items: center; cursor: pointer;">
+        <input type="checkbox" id="chkSaveSettings" style="margin-right: 8px;">
+        <span style="font-size:14px;">Remember this setting (次回以降もこの設定を使用)</span>
+      </label>
+    </div>
 
       <div style="text-align: right; margin-top: 15px;">
         <button id="btnSaveSettings" style="max-width: none; padding: 10px 20px;">OK</button>
       </div>
     </div>
   </div>
-
   
   <script type="module" src="/main.js"></script>
 </body>
 </html>
-
