@@ -709,219 +709,395 @@ class RenlibReaderJS {
 
 // --- YXDB Reader Class (Pure JS - Tree Builder Version) ---
 class YxdbReaderJS {
+
     constructor(buffer, encoding) {
+
         this.bufferRaw = buffer;
+
         this.encoding = encoding || 'utf-8';
+
     }
+
+
 
     _get32() {
+
         if (this.pos + 4 > this.data.byteLength) throw new Error("EOF");
-        const v = this.data.getUint32(this.pos, true); 
+
+        const v = this.data.getUint32(this.pos, true);
+
         this.pos += 4;
+
         return v;
+
     }
-    
+
+   
+
     _get16() {
+
         if (this.pos + 2 > this.data.byteLength) throw new Error("EOF");
+
         const v = this.data.getUint16(this.pos, true);
+
         this.pos += 2;
+
         return v;
+
     }
+
+
 
     _readBytes(len) {
+
         if (this.pos + len > this.data.byteLength) throw new Error("EOF");
+
         const arr = new Uint8Array(this.bufferRaw, this.pos, len);
+
         this.pos += len;
+
         return arr;
+
     }
 
-    // ★純粋JSでツリーを復元する関数
-    _getOrCreateChild(parentIdx, x, y) {
-        let child = getChild(parentIdx);
-        
-        while (child !== -1) {
-            if (getX(child) === x && getY(child) === y) {
-                return child;
-            }
-            child = getSibling(child);
-        }
 
-        if (globalNodeCount >= currentMaxNodes) {
-            throw new Error("NODE_LIMIT_REACHED");
-        }
-        if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
-        const newNode = globalNodeCount++;
-        setX(newNode, x);
-        setY(newNode, y);
-        setParent(newNode, parentIdx);
-        
-        const oldHead = getChild(parentIdx);
-        setChild(parentIdx, newNode);
-        setSibling(newNode, oldHead);
-        
-        return newNode;
-    }
 
-    async traverse() {
-        resetHashSystem();
-        resetStringSystem();
-        initMemory(); 
+async traverse() {
 
-        let uint8Buf = new Uint8Array(this.bufferRaw);
+    resetHashSystem();
 
-        if (uint8Buf.length >= 4) {
-             const view = new DataView(uint8Buf.buffer, uint8Buf.byteOffset, uint8Buf.byteLength);
-             if (view.getUint32(0, true) === 0x184D2204) {
-                 try {
-                     uint8Buf = lz4.decompress(uint8Buf);
-                 } catch(e) {
-                     console.error(e);
-                     throw new Error("LZ4 Decompression failed.");
-                 }
+    resetStringSystem();
+
+    initMemory();
+
+
+
+    let uint8Buf = new Uint8Array(this.bufferRaw);
+
+
+
+    // LZ4解凍チェック
+
+    if (uint8Buf.length >= 4) {
+
+         const view = new DataView(uint8Buf.buffer, uint8Buf.byteOffset, uint8Buf.byteLength);
+
+         if (view.getUint32(0, true) === 0x184D2204) {
+
+             try {
+
+                 uint8Buf = lz4.decompress(uint8Buf);
+
+             } catch(e) {
+
+                 console.error(e);
+
+                 throw new Error("LZ4 Decompression failed.");
+
              }
+
+         }
+
+    }
+
+
+
+    this.data = new DataView(uint8Buf.buffer, uint8Buf.byteOffset, uint8Buf.byteLength);
+
+    this.bufferRaw = uint8Buf.buffer;
+
+    this.pos = 0;
+
+
+
+    const numRecords = this._get32();
+
+   
+
+    if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
+
+    const rootIdx = globalNodeCount++;
+
+    setX(rootIdx, -1); setY(rootIdx, -1);
+
+   
+
+    const statusEl = document.getElementById("loadingStatus");
+
+    let iterCount = 0;
+
+
+
+    for (let i = 0; i < numRecords; i++) {
+
+        // UI更新頻度の調整
+
+        if (++iterCount % 2000 === 0) {
+
+            if(statusEl) statusEl.textContent = `Loading DB... ${i}/${numRecords}`;
+
+            await new Promise(r => setTimeout(r, 0));
+
+            if (globalNodeCount >= currentMaxNodes) throw new Error("NODE_LIMIT_REACHED");
+
         }
 
-        this.data = new DataView(uint8Buf.buffer, uint8Buf.byteOffset, uint8Buf.byteLength);
-        this.bufferRaw = uint8Buf.buffer; 
-        this.pos = 0;
 
-        const numRecords = this._get32();
-        
-        if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
-        const rootIdx = globalNodeCount++;
-        setX(rootIdx, -1); setY(rootIdx, -1);
-        
-        const statusEl = document.getElementById("loadingStatus");
-        let iterCount = 0;
 
-        try {
-            for (let i = 0; i < numRecords; i++) {
-                if (++iterCount % 2000 === 0) {
-                    if(statusEl) statusEl.textContent = `Loading DB... ${i}/${numRecords}`;
-                    await new Promise(r => setTimeout(r, 0));
-                    if (globalNodeCount >= currentMaxNodes) throw new Error("NODE_LIMIT_REACHED");
+        const numKeyBytes = this._get16();
+
+        if (numKeyBytes === 0) continue;
+
+       
+
+        const keyData = this._readBytes(numKeyBytes);
+
+       
+
+        const board = new JSBoard(SIZE);
+
+        const numStones = (numKeyBytes - 3) / 2;
+
+       
+
+        if (numStones >= 0) {
+
+            // 黒石の配置
+
+            const numBlack = Math.ceil(numStones / 2);
+
+            for(let k=0; k<numBlack; k++) {
+
+                const bx = keyData[3 + k*2];
+
+                const by = keyData[4 + k*2];
+
+                if(bx!==-1 && by!==-1) {
+
+                    board.grid[by * SIZE + bx] = 1;
+
+                    board._updateHashes(bx, by, 1);
+
                 }
 
-                const numKeyBytes = this._get16();
-                if (numKeyBytes === 0) continue; 
-                
-                const keyData = this._readBytes(numKeyBytes);
-                
-                const numStones = Math.floor((numKeyBytes - 3) / 2);
-                const moves = [];
+            }
 
-                if (numStones >= 0) {
-                    const numBlack = Math.ceil(numStones / 2);
-                    const numWhite = Math.floor(numStones / 2);
+           
 
-                    for(let k=0; k<numBlack; k++) {
-                        let bx = keyData[3 + k*2];
-                        let by = keyData[4 + k*2];
-                        if (bx === 255) bx = -1;
-                        if (by === 255) by = -1;
-                        if(bx !== undefined && bx !== -1) moves.push({x: bx, y: by, color: 1});
+            // 白石の配置
+
+            const numWhite = Math.floor(numStones / 2);
+
+            for(let k=0; k<numWhite; k++) {
+
+                const wx = keyData[3 + numBlack*2 + k*2];
+
+                const wy = keyData[4 + numBlack*2 + k*2];
+
+                if(wx!==-1 && wy!==-1) {
+
+                    board.grid[wy * SIZE + wx] = 2;
+
+                    board._updateHashes(wx, wy, 2);
+
+                }
+
+            }
+
+           
+
+            const { hash } = board.getCanonicalData();
+
+           
+
+            const numRecordBytes = this._get16();
+
+            const recordData = this._readBytes(numRecordBytes);
+
+           
+
+            let rawText = "";
+
+            let calcText = "";
+
+            let userLabel = "";
+
+            let comment = "";
+
+
+
+            if (numRecordBytes >= 5) {
+
+                const label = recordData[0];
+
+                const value = new DataView(recordData.buffer, recordData.byteOffset, recordData.byteLength).getInt16(1, true);
+
+               
+
+                const VALUE_MATE = 30000;
+
+                const VALUE_MATE_THRESHOLD = 29500;
+
+
+
+                const absVal = Math.abs(value);
+
+
+
+                // 1. 自動計算テキスト (Win/Lose/%)
+
+                if (absVal > VALUE_MATE_THRESHOLD) {
+
+                    const steps = VALUE_MATE - absVal + 1;
+
+                    if (value < 0) {
+
+                        calcText = `W${steps}`;
+
+                    } else {
+
+                        calcText = `L${steps}`;
+
                     }
-                    for(let k=0; k<numWhite; k++) {
-                        let wx = keyData[3 + numBlack*2 + k*2];
-                        let wy = keyData[4 + numBlack*2 + k*2]; 
-                        if (wx === 255) wx = -1;
-                        if (wy === 255) wy = -1;
-                        if(wx !== undefined && wx !== -1) moves.push({x: wx, y: wy, color: 2});
-                    }
-                    
-                    const orderedMoves = [];
-                    for(let k=0; k<numStones; k++) {
-                        if (k % 2 === 0) orderedMoves.push(moves[k/2]);
-                        else orderedMoves.push(moves[numBlack + Math.floor(k/2)]);
-                    }
 
-                    const board = new JSBoard(SIZE); 
-                    let currNodeIdx = rootIdx;
+                }
 
-                    for (const move of orderedMoves) {
-                        if(move && move.x !== -1 && move.y !== -1) {
-                            board.move(move.x, move.y); 
-                            // ★修正済み: Pure JS版の _getOrCreateChild を使用
-                            currNodeIdx = this._getOrCreateChild(currNodeIdx, move.x, move.y);
+                else if (label === 1) calcText = "W";
+
+                else if (label === 2) calcText = "L";
+
+                else if (value !== 0) {
+
+                    const K = 250;
+
+                    const winRate = 1 / (1 + Math.exp(value / K));
+
+                    const winPercent = Math.floor(winRate * 100);
+
+                    if (winPercent === 100) calcText = "W";
+
+                    else if (winPercent === 0) calcText = "L";
+
+                    else calcText = winPercent.toString();
+
+                }
+
+
+
+                // 2. テキストデータの解析 (@BTXT@対応)
+
+                const textData = recordData.subarray(5);
+
+                const decoder = new TextDecoder('utf-8');
+
+                const fullText = decoder.decode(textData);
+
+               
+
+                if (fullText.startsWith("@BTXT@")) {
+
+                    const bIndex = fullText.indexOf('\b');
+
+                    const endOfBtxt = (bIndex !== -1) ? bIndex : fullText.length;
+
+                    const btxtBody = fullText.substring(6, endOfBtxt);
+
+                   
+
+                    const lines = btxtBody.split('\n');
+
+                    for (let line of lines) {
+
+                        if (line.length > 2) {
+
+                            userLabel = line.substring(2);
+
+                            break;
+
                         }
+
                     }
 
-                    const { hash } = board.getCanonicalData();
-                    setStoredHash(currNodeIdx, hash);
-                    addNodeToHash(hash, currNodeIdx);
 
-                    const numRecordBytes = this._get16();
-                    const recordData = this._readBytes(numRecordBytes);
-                    
-                    let calcText = "";
-                    let userLabel = ""; 
-                    let comment = "";
 
-                    if (numRecordBytes >= 5) {
-                        const label = recordData[0];
-                        const value = new DataView(recordData.buffer, recordData.byteOffset, recordData.byteLength).getInt16(1, true);
-                        
-                        const VALUE_MATE = 30000;
-                        const VALUE_MATE_THRESHOLD = 29500; 
-                        const absVal = Math.abs(value);
+                    if (bIndex !== -1) {
 
-                        if (absVal > VALUE_MATE_THRESHOLD) {
-                            const steps = VALUE_MATE - absVal + 1;
-                            calcText = value < 0 ? `W${steps}` : `L${steps}`;
-                        }
-                        else if (label === 1) calcText = "W";
-                        else if (label === 2) calcText = "L";
-                        else if (value !== 0) {
-                            const K = 250; 
-                            const winRate = 1 / (1 + Math.exp(value / K));
-                            const winPercent = Math.floor(winRate * 100);
-                            if (winPercent === 100) calcText = "W";
-                            else if (winPercent === 0) calcText = "L";
-                            else calcText = winPercent.toString(); 
-                        }
+                        comment = fullText.substring(bIndex + 1);
 
-                        const textData = recordData.subarray(5);
-                        const decoder = new TextDecoder('utf-8');
-                        const fullText = decoder.decode(textData);
-                        
-                        if (fullText.startsWith("@BTXT@")) {
-                            const bIndex = fullText.indexOf('\b');
-                            const endOfBtxt = (bIndex !== -1) ? bIndex : fullText.length;
-                            const btxtBody = fullText.substring(6, endOfBtxt); 
-                            const lines = btxtBody.split('\n');
-                            for (let line of lines) {
-                                if (line.length > 2) {
-                                    userLabel = line.substring(2); 
-                                    break; 
-                                }
-                            }
-                            if (bIndex !== -1) comment = fullText.substring(bIndex + 1);
-                        } else {
-                            comment = fullText;
-                        }
-                        if (comment.includes("charset=")) comment = "";
                     }
-
-                    let finalBoardText = userLabel || calcText;
-                    if (comment) addString(currNodeIdx, comment, 'comment');
-                    if (finalBoardText) addString(currNodeIdx, finalBoardText, 'text');
 
                 } else {
-                    const numRecordBytes = this._get16();
-                    this.pos += numRecordBytes;
+
+                    comment = fullText;
+
                 }
+
+               
+
+                if (comment.includes("charset=")) comment = "";
+
             }
-        } catch (err) {
-            if (err.message === "NODE_LIMIT_REACHED" || err.message.includes("Invalid array length")) {
-                alert(`読み込みを中断しました（${globalNodeCount.toLocaleString()}ノード）。\n上限に達しました。SettingsからMax Nodesを増やしてください。`);
-            } else {
-                throw err;
+
+
+
+            if (numStones === 0 && !comment && !userLabel) {
+
+                continue;
+
             }
+
+
+
+            if ((globalNodeCount & CHUNK_MASK) === 0) addChunk();
+
+            const nodeIdx = globalNodeCount++;
+
+           
+
+            setStoredHash(nodeIdx, hash);
+
+           
+
+            let finalBoardText = "";
+
+            if (userLabel) {
+
+                finalBoardText = userLabel;
+
+            } else if (calcText) {
+
+                finalBoardText = calcText;
+
+            }
+
+           
+
+            if (comment) addString(nodeIdx, comment, 'comment');
+
+            if (finalBoardText) addString(nodeIdx, finalBoardText, 'text');
+
+           
+
+            addNodeToHash(hash, nodeIdx);
+
+        } else {
+
+            const numRecordBytes = this._get16();
+
+            this.pos += numRecordBytes;
+
         }
-        
-        if(statusEl) statusEl.textContent = `DB Load Complete: ${numRecords} records.`;
-        await new Promise(r => setTimeout(r, 500));
+
     }
+
+   
+
+    if(statusEl) statusEl.textContent = `DB Load Complete: ${numRecords} records.`;
+
+    await new Promise(r => setTimeout(r, 500));
+
+  }
+
 }
 
 let currentNodeIdx = 0;
