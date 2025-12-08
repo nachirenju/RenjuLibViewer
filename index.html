@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Renju Lib Viewer</title>
+  <script type="module" crossorigin src="/assets/index-CGbwwKiP.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BPzXhTHo.css">
+</head>
+<body>
+  <h2>Renju Lib Viewer</h2>
+
+  <div class="controls">
+    <div class="top-group">
+      <input type="file" id="loadLib" accept="*/*" style="display: none;">
+      <label for="loadLib" class="custom-file-upload">Load lib or db</label>
+      <button id="btnNew" class="btn-new">New</button>
+    </div>
+
+    <div class="board-wrapper" id="capture-target">
+      <div id="lib-info">Total Nodes: 0 | Current Move: 0</div>
+      <div id="board-container">
+        <canvas id="board" width="800" height="800"></canvas>
+      </div>
+      <div class="btn-group">
+        <button id="btnUndo5">◀◀</button>
+        <button id="btnUndo1">◀</button>
+        <button id="btnRedo1">▶</button>
+        <button id="btnRedo5">▶▶</button>
+        <button id="btnText">Aa</button>
+        <button id="btnPuzzle" title="Branch"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='M360-120v-567l-64%2063-56-56%20160-160%20160%20160-56%2057-64-64v261q35-31%2079-44.5t88-13.5q11%200%2021%201t19%203l-63-64%2056-56%20160%20160-160%20160-56-56%2063-64q-11-2-22-3.5t-22-1.5q-54%200-99.5%2030.5T440-280v160h-80Z'/%3e%3c/svg%3e" alt="Branch"></button>
+        <button id="btnShare" title="Share"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='M680-80q-50%200-85-35t-35-85q0-6%203-28L282-392q-16%2015-37%2023.5t-45%208.5q-50%200-85-35t-35-85q0-50%2035-85t85-35q24%200%2045%208.5t37%2023.5l281-164q-2-7-2.5-13.5T560-760q0-50%2035-85t85-35q50%200%2085%2035t35%2085q0%2050-35%2085t-85%2035q-24%200-45-8.5T598-672L317-508q2%207%202.5%2013.5t.5%2014.5q0%208-.5%2014.5T317-452l281%20164q16-15%2037-23.5t45-8.5q50%200%2085%2035t35%2085q0%2050-35%2085t-85%2035Zm0-80q17%200%2028.5-11.5T720-200q0-17-11.5-28.5T680-240q-17%200-28.5%2011.5T640-200q0%2017%2011.5%2028.5T680-160ZM200-440q17%200%2028.5-11.5T240-480q0-17-11.5-28.5T200-520q-17%200-28.5%2011.5T160-480q0%2017%2011.5%2028.5T200-440Zm480-280q17%200%2028.5-11.5T720-760q0-17-11.5-28.5T680-800q-17%200-28.5%2011.5T640-760q0%2017%2011.5%2028.5T680-720Zm0%20520ZM200-480Zm480-280Z'/%3e%3c/svg%3e" alt="Share"></button>
+        <button id="btnSave" title="Save"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='m720-120%20160-160-56-56-64%2064v-167h-80v167l-64-64-56%2056%20160%20160ZM560%200v-80h320V0H560ZM240-160q-33%200-56.5-23.5T160-240v-560q0-33%2023.5-56.5T240-880h280l240%20240v121h-80v-81H480v-200H240v560h240v80H240Zm0-80v-560%20560Z'/%3e%3c/svg%3e" alt="Save"></button>
+        <button id="btnDelete" title="Delete"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='M280-120q-33%200-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0%2033-23.5%2056.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160%200h80v-360h-80v360ZM280-720v520-520Z'/%3e%3c/svg%3e" alt="Del"></button>
+        <button id="btnSettings" title="Settings"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='m370-80-16-128q-13-5-24.5-12T307-235l-119%2050L78-375l103-78q-1-7-1-13.5v-27q0-6.5%201-13.5L78-585l110-190%20119%2050q11-8%2023-15t24-12l16-128h220l16%20128q13%205%2024.5%2012t22.5%2015l119-50%20110%20190-103%2078q1%207%201%2013.5v27q0%206.5-2%2013.5l103%2078-110%20190-118-50q-11%208-23%2015t-24%2012L590-80H370Zm70-80h79l14-106q31-8%2057.5-23.5T639-327l99%2041%2039-68-86-65q5-14%207-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99%2042q-22-23-48.5-38.5T533-694l-13-106h-79l-14%20106q-31%208-57.5%2023.5T321-633l-99-41-39%2068%2086%2064q-5%2015-7%2030t-2%2032q0%2016%202%2031t7%2030l-86%2065%2039%2068%2099-42q22%2023%2048.5%2038.5T427-266l13%20106Zm42-180q58%200%2099-41t41-99q0-58-41-99t-99-41q-59%200-99.5%2041T342-480q0%2058%2040.5%2099t99.5%2041Zm-2-140Z'/%3e%3c/svg%3e" alt="Settings"></button>
+        <button id="btnAbout" title="About"><img src="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20height='24px'%20viewBox='0%20-960%20960%20960'%20width='24px'%20fill='%231f1f1f'%3e%3cpath%20d='M440-280h80v-240h-80v240Zm40-320q17%200%2028.5-11.5T520-640q0-17-11.5-28.5T480-680q-17%200-28.5%2011.5T440-640q0%2017%2011.5%2028.5T480-600Zm0%20520q-83%200-156-31.5T197-197q-54-54-85.5-127T80-480q0-83%2031.5-156T197-763q54-54%20127-85.5T480-880q83%200%20156%2031.5T763-763q54%2054%2085.5%20127T880-480q0%2083-31.5%20156T763-197q-54%2054-127%2085.5T480-80Zm0-80q134%200%20227-93t93-227q0-134-93-227t-227-93q-134%200-227%2093t-93%20227q0%20134%2093%20227t227%2093Zm0-320Z'/%3e%3c/svg%3e" alt="About"></button>
+      </div>
+    </div>
+
+    <div id="comment-box" class="collapsed">
+      <h3 id="comment-toggle">Comments <span class="toggle-arrow">▼</span></h3>
+      <div class="comment-content">
+        <textarea id="comment-text" placeholder="No Comments"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-group">
+    <input type="text" class="status-bar" id="movesText" placeholder="h8h9..." spellcheck="false">
+    <button class="copy-btn" id="btnCopyMoves">Copy</button>
+  </div>
+  <div class="input-group" style="margin-top: 5px;">
+    <input type="text" class="status-bar" id="sgfText" placeholder="(;GM[1]SZ[15]...)" spellcheck="false">
+    <button class="copy-btn" id="btnCopySgf">Copy</button>
+  </div>
+  <div id="toast">Copied Diagram.</div>
+
+  <div id="aboutModal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeModal" class="close-btn">&times;</span>
+      <h3>About This App</h3>
+      <p>連珠(五目並べ)の棋譜閲覧アプリです。.lib形式のファイルを読み込んで棋譜を閲覧、またダウンロード、画面下部からテキストでの棋譜貼り付けに対応しています。</p>
+      <hr>
+      <p>製作者は連珠(五目並べ)関係のYouTubeチャンネルを運営しております。<br>応援していただけると嬉しいです。</p>
+      <p><a href="https://www.youtube.com/channel/UCfbgN9hrrh9fmFKs8gxln5g" target="_blank">youtube(那智暴虐のれんじゅいし【競技五目並べ】)</a></p>
+      <hr>
+      <h4>License & Credits</h4>
+      <p>Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3.0</a>.</p>
+      <p>This app is based on <strong>rapfi</strong> (GPL v3.0) by dhbloo. (About loading lib and db function.)</p>
+      <p><a href="https://github.com/dhbloo/rapfi" target="_blank">Original Repository (GitHub)</a></p>
+    </div>
+  </div>
+
+  <div id="encodingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Select Encoding</h3>
+      <p>ロード前にSettingから最大ノード数を設定してください。<br>ファイルの文字コードを選択してください。<br>(通常は Shift_JIS です)<br>
+      Before you load lib please set max node in setting button and choose the character code.</p>
+      <select id="modalEncodingSelect" style="width: 100%; margin: 10px 0;">
+        <option value="shift-jis">Japanese (Shift_JIS)</option>
+        <option value="gbk">Simplified Chinese (GBK/Simp)</option>
+        <option value="big5">Traditional Chinese (Big5/Trad)</option>
+        <option value="euc-kr">Korean (EUC-KR)</option>
+        <option value="utf-8">UTF-8</option>
+      </select>
+      <div style="text-align: right; margin-top: 15px;">
+        <button id="btnConfirmEncoding" style="max-width: none; padding: 10px 20px;">Load</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="saveEncodingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Save Configuration</h3>
+      <p>保存形式と文字コードを選択してください。<br>※現状.dbの書き出しが機能しません。<br>Select File Format and Encoding.<br>*Currently saving by db format doesn't work.</p>
+
+      <label style="display:block; font-weight:bold; margin-bottom:5px;">File Format:</label>
+      <select id="modalSaveFormatSelect" style="width: 100%; margin-bottom: 15px; padding: 5px;">
+        <option value="lib">RenLib (.lib)</option>
+        <option value="db">YXDB (.db)</option>
+      </select>
+
+      <label style="display:block; font-weight:bold; margin-bottom:5px;">Encoding:</label>
+      <select id="modalSaveEncodingSelect" style="width: 100%; margin-bottom: 15px; padding: 5px;">
+        <option value="shift-jis">Japanese (Shift_JIS)</option>
+        <option value="gb2312">Chinese (GB2312)</option>
+        <option value="big5">Traditional Chinese (Big5)</option>
+        <option value="utf-8">UTF-8</option>
+        <option value="windows-1251">Cyrillic</option>
+      </select>
+      
+      <div style="text-align: right; margin-top: 15px;">
+        <button id="btnConfirmSaveEncoding" style="max-width: none; padding: 10px 20px;">Save</button><br>
+        <button id="btnCancelSaveEncoding" style="max-width: none; padding: 10px 20px; background: #6c757d; margin-right: 5px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="modal hidden" style="z-index: 2000;">
+    <div class="modal-content" style="text-align: center; padding: 30px;">
+      <div class="spinner"></div>
+      <h3 style="border:none; margin-top:15px;">Loading...</h3>
+      <p id="loadingStatus" style="margin:0; font-family:monospace;">Processing nodes...</p>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Settings</h3>
+      
+      <label for="maxNodesInput" style="font-weight:bold; display:block; margin-bottom:5px;">Max Nodes (Memory Limit)</label>
+      <p style="font-size:12px; color:#666; margin-top:0;">
+        読み込む最大手数を設定します。<br>
+        数値を上げるとメモリ不足でクラッシュする可能性があります。<br>
+        (推奨: 3,000,000 〜 5,000,000)<br>
+        Choose the maximum nodes you load.If max node is too high, the app might freeze or crash
+      </p>
+      <div style="margin-bottom: 10px;">
+        <label style="font-size:12px; color:#444;">Presets:</label>
+        <select id="maxNodesSelect" style="width: 100%; padding: 8px;">
+          <option value="" disabled selected>Select a preset...</option>
+          <option value="1000000">1,000,000 (Low Memory)</option>
+          <option value="3000000">3,000,000 (Recommended)</option>
+          <option value="5000000">5,000,000 (High Performance)</option>
+          <option value="10000000">10,000,000 (Very High)</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <label style="font-size:12px; color:#444;">Custom Value:</label>
+        <input type="number" id="maxNodesInput" style="width: 100%; padding: 8px;" placeholder="Enter value...">
+      </div>
+<div style="margin-bottom: 15px;">
+      <label style="display: flex; align-items: center; cursor: pointer;">
+        <input type="checkbox" id="chkSaveSettings" style="margin-right: 8px;">
+        <span style="font-size:14px;">Remember this setting (次回以降もこの設定を使用)</span>
+      </label>
+    </div>
+
+      <div style="text-align: right; margin-top: 15px;">
+        <button id="btnSaveSettings" style="max-width: none; padding: 10px 20px;">OK</button>
+      </div>
+    </div>
+  </div>
+  
+</body>
+</html>
