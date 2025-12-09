@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Renju Lib Viewer</title>
   <script type="module" crossorigin src="./assets/index-DZKSXsJh.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-BPzXhTHo.css">
@@ -163,5 +163,15 @@
     </div>
   </div>
   
+  <script>
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', event => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, false);
+</script>
 </body>
 </html>
