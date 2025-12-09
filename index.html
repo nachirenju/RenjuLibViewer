@@ -164,14 +164,10 @@
   
   <script type="module" src="/main.js"></script>
   <script>
-  let lastTouchEnd = 0;
-  document.addEventListener('touchend', event => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) {
-      event.preventDefault();
-    }
-    lastTouchEnd = now;
-  }, false);
+ document.addEventListener('gesturestart', function (e) {
+  e.preventDefault();
+});
+
 </script>
 </body>
 </html>
