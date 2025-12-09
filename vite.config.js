@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite';
 
-export default defineConfig({
-  build: {
-    target: 'esnext', // 必須: TypedArrayをネイティブで動かす
-    sourcemap: false, // 必須: デバッグ情報をメモリに乗せない
-    minify: 'esbuild',
-  }
+export default defineConfig(({ mode }) => {
+  // コマンドで --mode app が指定されたかチェック
+  const isApp = mode === 'app';
+
+  return {
+    build: {
+      // ▼ ここがポイント！
+      // アプリ用なら 'dist-app'、Web用なら 'dist' にフォルダを分ける
+      outDir: isApp ? 'dist-app' : 'dist',
+
+      // ▼ 既存の設定（そのまま）
+      target: 'esnext', 
+      sourcemap: false, 
+      minify: 'esbuild',
+    }
+  };
 });
